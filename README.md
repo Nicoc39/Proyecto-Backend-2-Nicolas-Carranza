@@ -1,32 +1,64 @@
-# Sistema de Login con Passport y GitHub OAuth - E-Commerce
+# Sistema de Login con JWT, Passport y GitHub OAuth - E-Commerce
 
-Sistema completo de autenticación con Passport.js, gestión de sesiones, roles de usuario y autenticación con GitHub OAuth.
+Sistema completo de autenticación con JWT (JSON Web Tokens), Passport.js, gestión de sesiones, roles de usuario, carritos de compra y autenticación con GitHub OAuth.
 
-## 🚀 Características
+## 🚀 Características Principales
 
+- ✅ **Sistema de autenticación con JWT**
 - ✅ **Registro de usuarios** con validación y Passport Local Strategy
-- ✅ **Login seguro** con Passport y bcrypt (contraseñas hasheadas)
+- ✅ **Login seguro** con bcrypt (contraseñas hasheadas con `hashSync`)
 - ✅ **Autenticación con GitHub** OAuth 2.0
-- ✅ **Sistema de roles** (Admin/Usuario)
-- ✅ **Gestión de sesiones** con MongoDB
+- ✅ **Sistema de roles** (User/Admin)
+- ✅ **Modelo de Usuario completo** con referencia a Cart
+- ✅ **Gestión de carritos** para cada usuario
+- ✅ **Ruta `/current`** para validar usuario con JWT
 - ✅ **Protección de rutas** con middlewares
 - ✅ **Interfaz responsive** con Handlebars
 - ✅ **Catálogo de productos**
-- ✅ **Mensaje de bienvenida** personalizado
 
-## 📋 Requisitos Previos
+## 📋 Requisitos del Proyecto
 
-- Node.js (v14 o superior)
-- MongoDB instalado y corriendo localmente
-- Cuenta de GitHub para OAuth (opcional)
-- npm o yarn
+### 1. ✅ Modelo de Usuario
+```javascript
+{
+  first_name: String,
+  last_name: String,
+  email: String (único),
+  age: Number,
+  password: String (hasheado),
+  cart: ObjectId (referencia a Carts),
+  role: String (default: 'user')
+}
+```
+
+### 2. ✅ Encriptación con bcrypt
+- Contraseñas hasheadas usando `bcrypt.hashSync()`
+- Verificación con `bcrypt.compareSync()`
+
+### 3. ✅ Estrategias de Passport
+- **Local Strategy (Register)**: Registro de nuevos usuarios
+- **Local Strategy (Login)**: Autenticación de usuarios
+- **GitHub Strategy**: OAuth con GitHub
+- **JWT Strategy**: Validación de tokens JWT
+
+### 4. ✅ Sistema de Login con JWT
+- Generación de tokens JWT al login/registro
+- Tokens almacenados en localStorage (cliente)
+- Expiración de 24 horas
+
+### 5. ✅ Ruta `/current`
+```
+GET /api/sessions/current
+Authorization: Bearer {token}
+```
+Retorna los datos del usuario autenticado mediante JWT.
 
 ## 🔧 Instalación
 
 ### 1. Clonar el repositorio
 ```bash
-git clone <url-del-repositorio>
-cd login-system-ecommerce
+git clone https://github.com/Nicoc39/Proyecto-Backend-2-Nicolas-Carranza.git
+cd Proyecto-Backend-2-Nicolas-Carranza
 ```
 
 ### 2. Instalar dependencias
@@ -41,6 +73,7 @@ Crea un archivo `.env` en la raíz del proyecto:
 ```env
 MONGO_URI=mongodb://localhost:27017/ecommerce
 SESSION_SECRET=coderSecret2024
+JWT_SECRET=coderSecretJWT2024
 GITHUB_CLIENT_ID=tu_github_client_id
 GITHUB_CLIENT_SECRET=tu_github_client_secret
 PORT=8080
@@ -81,135 +114,242 @@ http://localhost:8080
 ## 📁 Estructura del Proyecto
 
 ```
-login-system-ecommerce/
+Proyecto-Backend-2-Nicolas-Carranza/
 ├── config/
-│   └── passport.config.js      # Configuración de Passport
+│   └── passport.config.js      # Configuración de Passport (4 strategies)
+├── middlewares/
+│   └── auth.middleware.js      # Middleware de autenticación JWT
 ├── models/
-│   └── User.js                 # Modelo de usuario (Mongoose)
+│   ├── User.js                 # Modelo de usuario con cart
+│   ├── Cart.js                 # Modelo de carrito
+│   └── Product.js              # Modelo de producto
 ├── routes/
-│   ├── sessions.routes.js      # Rutas de autenticación
+│   ├── sessions.routes.js      # Rutas de autenticación (con /current)
 │   ├── views.routes.js         # Rutas de vistas
 │   └── products.routes.js      # Rutas de productos
 ├── utils/
-│   └── hashUtils.js            # Utilidades de bcrypt
+│   ├── hashUtils.js            # Utilidades de bcrypt (hashSync)
+│   └── jwtUtils.js             # Utilidades JWT (generate, verify, extract)
 ├── views/
 │   ├── layouts/
 │   │   └── main.handlebars     # Layout principal
-│   ├── login.handlebars        # Vista de login
-│   ├── register.handlebars     # Vista de registro
+│   ├── login.handlebars        # Vista de login (guarda JWT)
+│   ├── register.handlebars     # Vista de registro (guarda JWT)
 │   └── products.handlebars     # Vista de productos
 ├── public/
 │   └── css/
 │       └── styles.css          # Estilos CSS
 ├── .env.example                # Ejemplo de variables de entorno
 ├── .gitignore                  # Archivos ignorados
+├── test-jwt.rest               # Archivo de pruebas JWT
 ├── app.js                      # Servidor principal
 ├── package.json                # Dependencias
 └── README.md                   # Este archivo
 ```
 
-## 🔐 Sistema de Autenticación
+## 🔐 Sistema de Autenticación JWT
+
+### Flujo de Autenticación
+
+1. **Registro/Login:**
+   - Usuario envía credenciales
+   - Servidor valida con Passport
+   - Genera JWT con `jsonwebtoken`
+   - Retorna token al cliente
+   - Cliente guarda token en `localStorage`
+
+2. **Peticiones autenticadas:**
+   - Cliente envía token en header `Authorization: Bearer {token}`
+   - Middleware `authMiddleware` valida el token
+   - Si es válido, agrega `req.user` con los datos del usuario
+   - Continúa con la petición
+
+3. **Logout:**
+   - Cliente elimina token de `localStorage`
+   - Sesión destruida en servidor
 
 ### Passport Strategies Implementadas
 
 #### 1. **Local Strategy - Registro**
+```javascript
+passport.use('register', ...)
+```
 - Valida datos del usuario
-- Hashea la contraseña con bcrypt (10 rounds)
+- Hashea contraseña con `bcrypt.hashSync()`
+- Crea carrito para el usuario
 - Asigna rol automáticamente
-- Crea usuario en MongoDB
+- Genera JWT
 
 #### 2. **Local Strategy - Login**
+```javascript
+passport.use('login', ...)
+```
 - Verifica existencia del usuario
-- Compara contraseña con bcrypt
-- Crea sesión de usuario
+- Compara contraseña con `bcrypt.compareSync()`
+- Genera JWT
+- Crea sesión
 
 #### 3. **GitHub Strategy**
+```javascript
+passport.use('github', ...)
+```
 - Autenticación OAuth 2.0
 - Obtiene datos del perfil de GitHub
-- Crea o encuentra usuario existente
-- Login automático después de autorización
+- Crea carrito y usuario si no existe
+- Genera JWT automáticamente
+
+#### 4. **JWT Strategy**
+```javascript
+passport.use('jwt', ...)
+```
+- Valida tokens JWT
+- Extrae usuario de la base de datos
+- Utilizado en ruta `/current`
+
+## 🛣️ Rutas de API
+
+### Autenticación
+
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| POST | `/api/sessions/register` | Registro con JWT | No |
+| POST | `/api/sessions/login` | Login con JWT | No |
+| GET | `/api/sessions/github` | Iniciar OAuth GitHub | No |
+| GET | `/api/sessions/github/callback` | Callback de GitHub | No |
+| **GET** | **`/api/sessions/current`** | **Obtener usuario actual (JWT)** | **Sí** |
+| POST | `/api/sessions/logout` | Cerrar sesión | No |
+
+### Productos
+
+| Método | Ruta | Descripción | Auth |
+|--------|------|-------------|------|
+| GET | `/api/products` | Listar productos | No |
+| GET | `/api/products/:id` | Obtener producto | No |
+
+### Vistas
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/` | Redirección inteligente |
+| GET | `/login` | Página de login |
+| GET | `/register` | Página de registro |
+| GET | `/products` | Catálogo (protegido) |
 
 ## 🔒 Sistema de Roles
 
 ### Usuario Administrador
 - **Email:** `adminCoder@coder.com`
-- **Contraseña:** La que definas al registrarte
-- **Rol:** Admin (automático)
+- **Contraseña:** La que definas
+- **Rol:** `admin` (automático)
 - **Indicador:** 👑 Administrador
 
 ### Usuario Regular
-- **Email:** Cualquier otro email
-- **Rol:** Usuario (por defecto)
+- **Email:** Cualquier otro
+- **Rol:** `user` (default)
 - **Indicador:** 👤 Usuario
 
-### Usuarios de GitHub
-- **Rol:** Usuario (por defecto)
-- **Sin contraseña local** (autenticación vía GitHub)
+## 🧪 Probando el Sistema JWT
 
-## 🛣️ Rutas Principales
+### Usando el archivo `test-jwt.rest`
 
-### Vistas
-- `GET /` - Redirige a login o productos según sesión
-- `GET /login` - Página de login
-- `GET /register` - Página de registro
-- `GET /products` - Catálogo de productos (protegido)
+Si usas VS Code con la extensión REST Client:
 
-### API - Autenticación
-- `POST /api/sessions/register` - Registro con Passport Local
-- `POST /api/sessions/login` - Login con Passport Local
-- `GET /api/sessions/github` - Iniciar OAuth con GitHub
-- `GET /api/sessions/github/callback` - Callback de GitHub
-- `POST /api/sessions/logout` - Cerrar sesión
-- `GET /api/sessions/current` - Usuario actual
+1. **Registrar usuario:**
+```http
+POST http://localhost:8080/api/sessions/register
+Content-Type: application/json
 
-### API - Productos
-- `GET /api/products` - Listar productos
-- `GET /api/products/:id` - Obtener producto por ID
+{
+  "first_name": "Juan",
+  "last_name": "Pérez",
+  "email": "juan@example.com",
+  "age": 25,
+  "password": "12345"
+}
+```
+
+2. **Login (obtienes el token):**
+```http
+POST http://localhost:8080/api/sessions/login
+Content-Type: application/json
+
+{
+  "email": "juan@example.com",
+  "password": "12345"
+}
+```
+
+3. **Usar ruta /current (con el token):**
+```http
+GET http://localhost:8080/api/sessions/current
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Usando Postman
+
+1. Registrar/Login → Copiar el `token` de la respuesta
+2. En `/current`:
+   - Headers → Key: `Authorization` → Value: `Bearer {tu_token}`
+
+### Usando el Frontend
+
+1. Registrarse o hacer login
+2. El token se guarda automáticamente en `localStorage`
+3. Abrir consola del navegador:
+```javascript
+localStorage.getItem('token')
+```
 
 ## 🔐 Seguridad
 
-### Hashing con bcrypt
+### Hash de Contraseñas
 ```javascript
-// Crear hash
-const hashedPassword = createHash(password);
+// utils/hashUtils.js
+import bcrypt from 'bcrypt';
 
-// Verificar contraseña
-const isValid = isValidPassword(password, hashedPassword);
+export const createHash = (password) => {
+  return bcrypt.hashSync(password, bcrypt.genSaltSync(10));
+};
+
+export const isValidPassword = (password, hashedPassword) => {
+  return bcrypt.compareSync(password, hashedPassword);
+};
+```
+
+### JWT
+```javascript
+// utils/jwtUtils.js
+import jwt from 'jsonwebtoken';
+
+export const generateToken = (payload, expiresIn = '24h') => {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+};
+
+export const verifyToken = (token) => {
+  return jwt.verify(token, JWT_SECRET);
+};
 ```
 
 ### Características de Seguridad
 - ✅ Contraseñas hasheadas con bcrypt (10 salt rounds)
+- ✅ Tokens JWT con expiración de 24h
 - ✅ Sesiones almacenadas en MongoDB
-- ✅ Protección de rutas con middlewares
-- ✅ Validación de datos en frontend y backend
-- ✅ Cookie con expiración de 1 hora
+- ✅ Middleware de autenticación
+- ✅ Middleware de autorización (admin)
 - ✅ OAuth 2.0 con GitHub
-- ✅ Serialización/Deserialización de usuarios con Passport
 
-## 💡 Funcionalidades por Método
+## 💡 Middleware de Autenticación
 
-### 1. Registro Local
-1. Usuario completa formulario
-2. Passport Strategy `register` valida datos
-3. Contraseña se hashea con bcrypt
-4. Usuario se guarda en MongoDB
-5. Redirección a login
-
-### 2. Login Local
-1. Usuario ingresa credenciales
-2. Passport Strategy `login` busca usuario
-3. bcrypt compara contraseñas
-4. Sesión se crea en MongoDB
-5. Redirección a productos
-
-### 3. Login con GitHub
-1. Usuario click en "Continuar con GitHub"
-2. Redirección a GitHub OAuth
-3. Usuario autoriza la aplicación
-4. GitHub envía datos de perfil
-5. Sistema busca o crea usuario
-6. Sesión se crea automáticamente
-7. Redirección a productos
+```javascript
+// middlewares/auth.middleware.js
+export const authMiddleware = async (req, res, next) => {
+  const token = extractToken(req);
+  const decoded = verifyToken(token);
+  const user = await User.findById(decoded.id).populate('cart');
+  req.user = user;
+  next();
+};
+```
 
 ## 🛠️ Tecnologías Utilizadas
 
@@ -219,32 +359,36 @@ const isValid = isValidPassword(password, hashedPassword);
 - **Passport.js** - Autenticación
   - passport-local
   - passport-github2
+  - passport-jwt
+- **JWT** - JSON Web Tokens
 
 ### Base de Datos
 - **MongoDB** - Base de datos NoSQL
 - **Mongoose** - ODM para MongoDB
 
 ### Seguridad
-- **bcrypt** - Hashing de contraseñas
+- **bcrypt** - Hashing con `hashSync()` y `compareSync()`
+- **jsonwebtoken** - Generación y verificación de JWT
 - **express-session** - Gestión de sesiones
-- **connect-mongo** - Store de sesiones en MongoDB
+- **connect-mongo** - Store de sesiones
+- **cookie-parser** - Manejo de cookies
 
 ### Frontend
 - **Handlebars** - Motor de templates
 - **CSS3** - Estilos modernos
-
-## 📝 Diferencias vs Versión Anterior
-
-| Característica | Versión Anterior | Versión con Passport |
-|---------------|------------------|----------------------|
-| Autenticación | Manual con bcrypt | **Passport Strategies** |
-| Login Local | Ruta personalizada | **passport-local** |
-| OAuth | No disponible | **passport-github2** |
-| Hashing | En ruta | **Utilidad reutilizable** |
-| Código | Más verboso | **Más modular y limpio** |
-| Escalabilidad | Limitada | **Fácil agregar strategies** |
+- **LocalStorage** - Almacenamiento de JWT
 
 ## 🐛 Troubleshooting
+
+### Token inválido o expirado
+- Verificar que el token esté en el formato correcto
+- Tokens expiran en 24h, hacer login nuevamente
+- Verificar que `JWT_SECRET` sea el mismo en toda la app
+
+### Usuario no encontrado en /current
+- Asegurarse de enviar el header `Authorization: Bearer {token}`
+- Verificar que el token sea válido
+- Usuario debe existir en la base de datos
 
 ### MongoDB no conecta
 ```bash
@@ -253,33 +397,33 @@ mongod
 ```
 
 ### GitHub OAuth no funciona
-- Verifica que las URLs coincidan exactamente
-- Callback debe ser: `http://localhost:8080/api/sessions/github/callback`
-- Verifica que CLIENT_ID y CLIENT_SECRET sean correctos
-- Asegúrate de que el `.env` esté cargado
+- Verificar URLs exactas en la configuración
+- CLIENT_ID y CLIENT_SECRET correctos
+- Callback: `http://localhost:8080/api/sessions/github/callback`
 
-### Error: Cannot find module 'passport'
-```bash
-npm install
-```
+## 📊 Comparación: Sesiones vs JWT
 
-### Sesión no persiste
-- Verifica que MongoDB esté corriendo
-- Verifica que la conexión a MongoDB sea exitosa
-- Revisa la configuración de cookies
+| Característica | Sesiones | JWT |
+|---------------|----------|-----|
+| Almacenamiento | Servidor (MongoDB) | Cliente (localStorage) |
+| Escalabilidad | Requiere store compartido | Stateless, fácil escalar |
+| Seguridad | Cookies HttpOnly | Header Authorization |
+| Expiración | Configurable en servidor | En el token mismo |
+| **Uso en este proyecto** | **Compatibilidad vistas** | **API principal** |
 
 ## 🚀 Próximos Pasos
 
-- [ ] Agregar más strategies (Google, Facebook, Twitter)
-- [ ] Implementar recuperación de contraseña
-- [ ] Agregar verificación de email
-- [ ] Implementar refresh tokens
-- [ ] Agregar sistema de permisos granulares
-- [ ] Implementar rate limiting
+- [ ] Refresh tokens
+- [ ] Rate limiting
+- [ ] Verificación de email
+- [ ] Recuperación de contraseña
+- [ ] Roles personalizados
+- [ ] Permisos granulares
+- [ ] Más providers OAuth (Google, Facebook)
 
 ## 📧 Contacto
 
-Para cualquier consulta o sugerencia, no dudes en contactar.
+Para cualquier consulta o sugerencia sobre el proyecto.
 
 ## 📄 Licencia
 

@@ -100,13 +100,24 @@
 
       const data = await response.json();
 
-      if (response.ok) {
+      console.log('Register Response:', {
+        status: response.status,
+        ok: response.ok,
+        data: data
+      });
+
+      if (data.status === 'success' && data.token) {
+        // Guardar token en localStorage
+        localStorage.setItem('token', data.token);
+        console.log('✓ Token guardado en localStorage');
+        
         successDiv.textContent = 'Registro exitoso. Redirigiendo...';
         setTimeout(() => {
-          window.location.href = '/login';
-        }, 1500);
+          window.location.href = data.redirect || '/products';
+        }, 1000);
       } else {
         errorDiv.textContent = data.message || 'Error al registrar usuario';
+        console.error('Register error:', data);
       }
     } catch (error) {
       errorDiv.textContent = 'Error de conexión';

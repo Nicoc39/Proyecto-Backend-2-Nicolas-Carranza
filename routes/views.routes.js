@@ -1,27 +1,52 @@
 import { Router } from 'express';
+import { verifyToken } from '../utils/jwtUtils.js';
 
 const router = Router();
 
-// Middleware para verificar autenticación
+// Middleware para verificar autenticación (cookie)
 const isAuthenticated = (req, res, next) => {
-  if (req.session && req.session.user) {
-    return next();
+  const token = req.signedCookies.currentUser;
+  
+  if (!token) {
+    return res.redirect('/login');
   }
-  res.redirect('/login');
+
+  try {
+    const decoded = verifyToken(token);
+    req.user = decoded;
+    return next();
+  } catch (error) {
+    res.clearCookie('currentUser');
+    res.redirect('/login');
+  }
 };
 
 // Middleware para verificar que NO esté autenticado
 const isNotAuthenticated = (req, res, next) => {
-  if (!req.session || !req.session.user) {
-    return next();
+  const token = req.signedCookies.currentUser;
+  
+  if (token) {
+    try {
+      verifyToken(token);
+      return res.redirect('/products');
+    } catch (error) {
+      res.clearCookie('currentUser');
+    }
   }
-  res.redirect('/products');
+  next();
 };
 
 // Ruta principal - redirige según estado de sesión
 router.get('/', (req, res) => {
-  if (req.session.user) {
-    return res.redirect('/products');
+  const token = req.signedCookies.currentUser;
+  
+  if (token) {
+    try {
+      verifyToken(token);
+      return res.redirect('/products');
+    } catch (error) {
+      res.clearCookie('currentUser');
+    }
   }
   res.redirect('/login');
 });
@@ -33,18 +58,19 @@ router.get('/login', isNotAuthenticated, (req, res) => {
   });
 });
 
-// Vista de registro
-router.get('/register', isNotAuthenticated, (req, res) => {
-  res.render('register', {
-    title: 'Registro de Usuario'
-  });
-});
-
 // Vista de productos (protegida)
 router.get('/products', isAuthenticated, (req, res) => {
   res.render('products', {
     title: 'Productos',
-    user: req.session.user
+    user: req.user
+  });
+});
+
+// Vista de carrito (protegida)
+router.get('/cart', isAuthenticated, (req, res) => {
+  res.render('cart', {
+    title: 'Mi Carrito',
+    user: req.user
   });
 });
 

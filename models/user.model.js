@@ -25,10 +25,14 @@ const userSchema = new mongoose.Schema({
       return !this.githubId;
     }
   },
+  cart: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Cart'
+  },
   role: {
     type: String,
-    enum: ['usuario', 'admin'],
-    default: 'usuario'
+    enum: ['user', 'admin'],
+    default: 'user'
   },
   githubId: {
     type: String,

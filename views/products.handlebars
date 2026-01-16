@@ -19,7 +19,10 @@
   </div>
 
   <div class="products-section">
-    <h2>Catálogo de Productos</h2>
+    <div class="section-header">
+      <h2>Catálogo de Productos</h2>
+      <a href="/cart" class="btn-primary">🛒 Ver Carrito</a>
+    </div>
     <div id="productsGrid" class="products-grid">
       <p>Cargando productos...</p>
     </div>
@@ -31,6 +34,33 @@
   Handlebars.registerHelper('eq', function(a, b) {
     return a === b;
   });
+
+  // Verificar si hay token en la URL (GitHub OAuth)
+  const urlParams = new URLSearchParams(window.location.search);
+  const tokenFromUrl = urlParams.get('token');
+  if (tokenFromUrl) {
+    localStorage.setItem('token', tokenFromUrl);
+    // Limpiar URL
+    window.history.replaceState({}, document.title, '/products');
+  }
+
+  // Función para obtener el token
+  function getToken() {
+    return localStorage.getItem('token');
+  }
+
+  // Verificar token al cargar
+  const token = getToken();
+  console.log('🔍 Token check:', token ? '✓ Presente' : '✗ No presente');
+  
+  if (!token) {
+    document.getElementById('productsGrid').innerHTML = `
+      <div class="error-message">
+        <p>⚠️ No hay sesión activa</p>
+        <p>Por favor <a href="/login" style="color: #007bff; text-decoration: underline;">inicia sesión</a></p>
+      </div>
+    `;
+  }
 
   // Cargar productos
   async function loadProducts() {
@@ -61,7 +91,7 @@
         <h3>${product.name}</h3>
         <p class="price">$${product.price}</p>
         <p class="stock">Stock: ${product.stock} unidades</p>
-        <button class="btn-primary" onclick="addToCart(${product.id})">
+        <button class="btn-primary" onclick="addToCart('${product._id}')">
           Agregar al carrito
         </button>
       </div>
@@ -69,33 +99,98 @@
   }
 
   function addToCart(productId) {
-    alert(`Producto ${productId} agregado al carrito`);
+    const token = getToken();
+    
+    if (!token) {
+      alert('❌ No estás autenticado. Recarga la página.');
+      window.location.href = '/login';
+      return;
+    }
+    
+    const quantity = prompt('¿Cuántas unidades deseas agregar?', '1');
+    
+    if (!quantity || quantity < 1) {
+      return;
+    }
+
+    fetch('/api/cart/add', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        productId,
+        quantity: parseInt(quantity)
+      })
+    })
+    .then(response => {
+      if (!response.ok) {
+        console.error('Response status:', response.status);
+        return response.json().then(data => {
+          throw new Error(data.message || 'Error al agregar al carrito');
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.status === 'success') {
+        alert('✓ Producto agregado al carrito');
+      } else {
+        alert('Error: ' + (data.message || 'Error desconocido'));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('❌ ' + error.message);
+    });
   }
 
   // Cerrar sesión
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try {
-      const response = await fetch('/api/sessions/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      const response = await fetch('/api/users/logout', {
+        method: 'POST'
       });
       
       const data = await response.json();
       
-      if (response.ok) {
+      if (data.status === 'success') {
         window.location.href = data.redirect || '/login';
-      } else {
-        alert('Error al cerrar sesión: ' + (data.message || 'Error desconocido'));
-        console.error('Error:', data);
       }
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
-      alert('Error al cerrar sesión: ' + error.message);
+      window.location.href = '/login';
     }
   });
 
   // Cargar productos al iniciar
   loadProducts();
 </script>
+
+<style>
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .section-header h2 {
+    margin: 0;
+  }
+
+  .section-header a {
+    padding: 0.75rem 1.5rem;
+    background: #28a745;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: bold;
+    transition: background 0.3s;
+  }
+
+  .section-header a:hover {
+    background: #218838;
+  }
+</style>

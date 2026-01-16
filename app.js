@@ -6,11 +6,19 @@ import { dirname, join } from 'path';
 import MongoStore from 'connect-mongo';
 import mongoose from 'mongoose';
 import passport from 'passport';
+import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
+
+// Cargar variables de entorno
+dotenv.config();
 
 // Rutas
 import viewsRouter from './routes/views.routes.js';
 import sessionsRouter from './routes/sessions.routes.js';
 import productsRouter from './routes/products.routes.js';
+import cartRouter from './routes/cart.routes.js';
+import usersApiRouter from './routes/api.users.js';
+import usersViewsRouter from './routes/users.views.js';
 
 // Passport config
 import './config/passport.config.js';
@@ -19,24 +27,28 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 // Conexión a MongoDB
-const MONGO_URI = 'mongodb://localhost:27017/ecommerce';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/ecommerce';
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✓ Conectado a MongoDB'))
   .catch(err => console.error('Error conectando a MongoDB:', err));
 
 // Configuración de Handlebars
-app.engine('handlebars', handlebars.engine({
+const hbs = handlebars.create({
   runtimeOptions: {
     allowProtoPropertiesByDefault: true,
     allowProtoMethodsByDefault: true
-  },
-  helpers: {
-    eq: (a, b) => a === b
   }
-}));
+});
+
+// Registrar helpers
+hbs.handlebars.registerHelper('eq', function(a, b) {
+  return a === b;
+});
+
+app.engine('handlebars', hbs.engine);
 app.set('view engine', 'handlebars');
 app.set('views', join(__dirname, 'views'));
 
@@ -44,6 +56,7 @@ app.set('views', join(__dirname, 'views'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(join(__dirname, 'public')));
+app.use(cookieParser(process.env.COOKIE_SECRET || 'coderSecretCookie2024'));
 
 // Configuración de sesiones (DEBE IR ANTES DE PASSPORT)
 app.use(session({
@@ -51,7 +64,7 @@ app.use(session({
     mongoUrl: MONGO_URI,
     ttl: 3600
   }),
-  secret: 'coderSecret2024',
+  secret: process.env.SESSION_SECRET || 'coderSecret2024',
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -74,8 +87,11 @@ app.use((req, res, next) => {
 app.use('/', viewsRouter);
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/cart', cartRouter);
+app.use('/api/users', usersApiRouter);
+app.use('/users', usersViewsRouter);
 
 app.listen(PORT, () => {
-  console.log(`Servidor escuchando en puerto ${PORT}`);
-  console.log(`http://localhost:${PORT}`);
+  console.log(`✓ Servidor escuchando en puerto ${PORT}`);
+  console.log(`✓ http://localhost:${PORT}`);
 });
