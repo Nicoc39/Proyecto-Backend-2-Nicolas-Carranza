@@ -1,0 +1,101 @@
+<div class="container">
+  <div class="header">
+    <div class="welcome-message">
+      <h1>Bienvenido, {{user.first_name}} {{user.last_name}}</h1>
+      <div class="user-info">
+        <p><strong>Email:</strong> {{user.email}}</p>
+        <p><strong>Edad:</strong> {{user.age}} años</p>
+        <p class="role {{user.role}}">
+          <strong>Rol:</strong> 
+          {{#if (eq user.role 'admin')}}
+            👑 Administrador
+          {{else}}
+            👤 Usuario
+          {{/if}}
+        </p>
+      </div>
+    </div>
+    <button id="logoutBtn" class="btn-secondary">Cerrar Sesión</button>
+  </div>
+
+  <div class="products-section">
+    <h2>Catálogo de Productos</h2>
+    <div id="productsGrid" class="products-grid">
+      <p>Cargando productos...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Helper para comparar valores
+  Handlebars.registerHelper('eq', function(a, b) {
+    return a === b;
+  });
+
+  // Cargar productos
+  async function loadProducts() {
+    try {
+      const response = await fetch('/api/products');
+      const data = await response.json();
+      
+      if (data.status === 'success') {
+        displayProducts(data.products);
+      }
+    } catch (error) {
+      console.error('Error cargando productos:', error);
+      document.getElementById('productsGrid').innerHTML = 
+        '<p class="error-message">Error al cargar productos</p>';
+    }
+  }
+
+  function displayProducts(products) {
+    const grid = document.getElementById('productsGrid');
+    
+    if (products.length === 0) {
+      grid.innerHTML = '<p>No hay productos disponibles</p>';
+      return;
+    }
+
+    grid.innerHTML = products.map(product => `
+      <div class="product-card">
+        <h3>${product.name}</h3>
+        <p class="price">$${product.price}</p>
+        <p class="stock">Stock: ${product.stock} unidades</p>
+        <button class="btn-primary" onclick="addToCart(${product.id})">
+          Agregar al carrito
+        </button>
+      </div>
+    `).join('');
+  }
+
+  function addToCart(productId) {
+    alert(`Producto ${productId} agregado al carrito`);
+  }
+
+  // Cerrar sesión
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try {
+      const response = await fetch('/api/sessions/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        window.location.href = data.redirect || '/login';
+      } else {
+        alert('Error al cerrar sesión: ' + (data.message || 'Error desconocido'));
+        console.error('Error:', data);
+      }
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      alert('Error al cerrar sesión: ' + error.message);
+    }
+  });
+
+  // Cargar productos al iniciar
+  loadProducts();
+</script>
