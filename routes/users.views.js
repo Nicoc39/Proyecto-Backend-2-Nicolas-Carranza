@@ -32,10 +32,17 @@ const isNotAuthenticated = (req, res, next) => {
   next();
 };
 
-// Vista de login - ruta raíz
+// Vista de login
 router.get('/login', isNotAuthenticated, (req, res) => {
   res.render('login', {
     title: 'Iniciar Sesión'
+  });
+});
+
+// Vista de registro
+router.get('/register', isNotAuthenticated, (req, res) => {
+  res.render('register', {
+    title: 'Registrarse'
   });
 });
 

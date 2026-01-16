@@ -58,6 +58,13 @@ router.get('/login', isNotAuthenticated, (req, res) => {
   });
 });
 
+// Vista de registro
+router.get('/register', isNotAuthenticated, (req, res) => {
+  res.render('register', {
+    title: 'Registrarse'
+  });
+});
+
 // Vista de productos (protegida)
 router.get('/products', isAuthenticated, (req, res) => {
   res.render('products', {
