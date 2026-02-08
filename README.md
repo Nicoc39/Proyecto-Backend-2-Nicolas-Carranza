@@ -285,9 +285,9 @@ mongod
 
 ## 📧 Contacto
 
-Nicolás Carranza
-Nicoc39@gmail.com
-comision coderhouse: 76905
+- Nicolás Carranza
+- Nicoc39@gmail.com
+- comision coderhouse: 76905
 
 ## 📄 Licencia
 
