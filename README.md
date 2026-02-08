@@ -182,58 +182,6 @@ passport.use('jwt', ...)
 - **Rol:** `user` (default)
 - **Indicador:** 👤 Usuario
 
-## 🧪 Probando el Sistema JWT
-
-### Usando el archivo `test-jwt.rest`
-
-Si usas VS Code con la extensión REST Client:
-
-1. **Registrar usuario:**
-```http
-POST http://localhost:8080/api/sessions/register
-Content-Type: application/json
-
-{
-  "first_name": "Juan",
-  "last_name": "Pérez",
-  "email": "juan@example.com",
-  "age": 25,
-  "password": "12345"
-}
-```
-
-2. **Login (obtienes el token):**
-```http
-POST http://localhost:8080/api/sessions/login
-Content-Type: application/json
-
-{
-  "email": "juan@example.com",
-  "password": "12345"
-}
-```
-
-3. **Usar ruta /current (con el token):**
-```http
-GET http://localhost:8080/api/sessions/current
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-### Usando Postman
-
-1. Registrar/Login → Copiar el `token` de la respuesta
-2. En `/current`:
-   - Headers → Key: `Authorization` → Value: `Bearer {tu_token}`
-
-### Usando el Frontend
-
-1. Registrarse o hacer login
-2. El token se guarda automáticamente en `localStorage`
-3. Abrir consola del navegador:
-```javascript
-localStorage.getItem('token')
-```
-
 ## 🔐 Seguridad
 
 ### Hash de Contraseñas
@@ -335,29 +283,11 @@ mongod
 - CLIENT_ID y CLIENT_SECRET correctos
 - Callback: `http://localhost:8080/api/sessions/github/callback`
 
-## 📊 Comparación: Sesiones vs JWT
-
-| Característica | Sesiones | JWT |
-|---------------|----------|-----|
-| Almacenamiento | Servidor (MongoDB) | Cliente (localStorage) |
-| Escalabilidad | Requiere store compartido | Stateless, fácil escalar |
-| Seguridad | Cookies HttpOnly | Header Authorization |
-| Expiración | Configurable en servidor | En el token mismo |
-| **Uso en este proyecto** | **Compatibilidad vistas** | **API principal** |
-
-## 🚀 Próximos Pasos
-
-- [ ] Refresh tokens
-- [ ] Rate limiting
-- [ ] Verificación de email
-- [ ] Recuperación de contraseña
-- [ ] Roles personalizados
-- [ ] Permisos granulares
-- [ ] Más providers OAuth (Google, Facebook)
-
 ## 📧 Contacto
 
-Para cualquier consulta o sugerencia sobre el proyecto.
+Nicolás Carranza
+Nicoc39@gmail.com
+comision coderhouse: 76905
 
 ## 📄 Licencia
 
