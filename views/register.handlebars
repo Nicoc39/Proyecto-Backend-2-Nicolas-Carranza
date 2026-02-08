@@ -1,28 +1,31 @@
-<div class="container">
-  <div class="form-container">
-    <h1>Registro de Usuario</h1>
+<div class="form-container">
+  <div class="form-card">
+    <h1>✨ Crear Cuenta</h1>
+    <p>Únete a nuestra comunidad</p>
     
     <form id="registerForm">
-      <div class="form-group">
-        <label for="first_name">Nombre</label>
-        <input 
-          type="text" 
-          id="first_name" 
-          name="first_name" 
-          required 
-          placeholder="Juan"
-        >
-      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="first_name">Nombre</label>
+          <input 
+            type="text" 
+            id="first_name" 
+            name="first_name" 
+            required 
+            placeholder="Juan"
+          >
+        </div>
 
-      <div class="form-group">
-        <label for="last_name">Apellido</label>
-        <input 
-          type="text" 
-          id="last_name" 
-          name="last_name" 
-          required 
-          placeholder="Pérez"
-        >
+        <div class="form-group">
+          <label for="last_name">Apellido</label>
+          <input 
+            type="text" 
+            id="last_name" 
+            name="last_name" 
+            required 
+            placeholder="Pérez"
+          >
+        </div>
       </div>
 
       <div class="form-group">
@@ -32,7 +35,7 @@
           id="email" 
           name="email" 
           required 
-          placeholder="correo@ejemplo.com"
+          placeholder="tu@correo.com"
         >
       </div>
 
@@ -43,7 +46,7 @@
           id="age" 
           name="age" 
           required 
-          min="1" 
+          min="18" 
           max="120"
           placeholder="25"
         >
@@ -56,23 +59,25 @@
           id="password" 
           name="password" 
           required 
-          placeholder="********"
+          placeholder="••••••••"
         >
       </div>
 
-      <div id="errorMessage" class="error-message"></div>
-      <div id="successMessage" class="success-message"></div>
+      <div id="errorMessage" class="alert alert-error" style="display: none;"></div>
+      <div id="successMessage" class="alert alert-success" style="display: none;"></div>
 
-      <button type="submit" class="btn-primary">Registrarse</button>
+      <button type="submit" class="btn-primary">Crear Cuenta</button>
     </form>
 
-    <p class="form-footer">
-      ¿Ya tienes cuenta? <a href="/login">Inicia sesión aquí</a>
-    </p>
+    <div class="form-link">
+      <a href="/login">¿Ya tienes cuenta? Inicia sesión</a>
+    </div>
   </div>
 </div>
 
 <script>
+  console.log('📝 Vista de registro cargada');
+
   document.getElementById('registerForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -89,6 +94,8 @@
       password: document.getElementById('password').value
     };
 
+    console.log('📤 Enviando registro para:', formData.email);
+
     try {
       const response = await fetch('/api/sessions/register', {
         method: 'POST',
@@ -98,30 +105,36 @@
         body: JSON.stringify(formData)
       });
 
+      console.log('📥 Respuesta recibida:', response.status);
+
       const data = await response.json();
+      console.log('📦 Datos:', data);
 
-      console.log('Register Response:', {
-        status: response.status,
-        ok: response.ok,
-        data: data
-      });
-
-      if (data.status === 'success' && data.token) {
-        // Guardar token en localStorage
-        localStorage.setItem('token', data.token);
-        console.log('✓ Token guardado en localStorage');
+      if (response.ok) {
+        console.log('✓ Registro exitoso');
+        
+        // Guardar token
+        if (data.token) {
+          try {
+            localStorage.setItem('token', data.token);
+            console.log('✓ Token guardado en localStorage');
+          } catch (storageError) {
+            console.error('❌ Error guardando token:', storageError);
+          }
+        }
         
         successDiv.textContent = 'Registro exitoso. Redirigiendo...';
         setTimeout(() => {
-          window.location.href = data.redirect || '/products';
-        }, 1000);
+          console.log('🔄 Redirigiendo a login...');
+          window.location.href = '/login';
+        }, 1500);
       } else {
+        console.error('❌ Error en registro:', data.message);
         errorDiv.textContent = data.message || 'Error al registrar usuario';
-        console.error('Register error:', data);
       }
     } catch (error) {
-      errorDiv.textContent = 'Error de conexión';
-      console.error('Error:', error);
+      console.error('❌ Error de conexión:', error);
+      errorDiv.textContent = 'Error de conexión con el servidor';
     }
   });
 </script>

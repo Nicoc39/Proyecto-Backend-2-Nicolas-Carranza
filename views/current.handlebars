@@ -1,147 +1,421 @@
-<div class="container">
-  <div class="current-user-section">
-    <div class="user-card">
-      <h1>Usuario Actual</h1>
-      
-      <div class="user-details">
-        <div class="user-field">
-          <label>ID:</label>
-          <p>{{user.id}}</p>
+<div class="products-container">
+  <div class="products-header">
+    <div>
+      <h1>👤 Mi Perfil</h1>
+      <p>Información de tu cuenta</p>
+    </div>
+    <div class="header-actions">
+      <button id="logoutBtn" class="btn-danger">Cerrar Sesión</button>
+    </div>
+  </div>
+
+  <div class="products-wrapper">
+    <div class="user-profile">
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="profile-avatar">👤</div>
+          <h2 id="profileName">{{user.first_name}} {{user.last_name}}</h2>
         </div>
-        
-        <div class="user-field">
-          <label>Email:</label>
-          <p>{{user.email}}</p>
-        </div>
-        
-        <div class="user-field">
-          <label>Rol:</label>
-          <p>
-            {{#if (eq user.role 'admin')}}
-              <span class="badge badge-admin">👑 Administrador</span>
-            {{else}}
-              <span class="badge badge-user">👤 Usuario</span>
-            {{/if}}
-          </p>
+
+        <div class="profile-details">
+          <div class="detail-row">
+            <span class="detail-label">Correo Electrónico:</span>
+            <span class="detail-value" id="profileEmail">{{user.email}}</span>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">Edad:</span>
+            <span class="detail-value" id="profileAge">{{user.age}} años</span>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">Rol:</span>
+            <span class="detail-value" id="profileRole"></span>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-label">ID de Usuario:</span>
+            <span class="detail-value" id="profileId">{{user.id}}</span>
+          </div>
+
         </div>
       </div>
 
-      <div class="user-actions">
-        <button id="logoutBtn" class="btn-danger">Cerrar Sesión</button>
+      <div class="profile-card">
+        <div class="profile-header">
+          <h2>🧾 Historial de Compras</h2>
+        </div>
+        <div id="purchaseHistory" class="history-list">
+          <p class="loading-text">Cargando historial...</p>
+        </div>
+      </div>
+
+      <div class="quick-links">
+        <a href="/products" class="btn-primary">🛍️ Ir a Comprar</a>
+        <a href="/cart" class="btn-secondary">🛒 Ver Carrito</a>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-  // Helper para comparar valores
-  Handlebars.registerHelper('eq', function(a, b) {
-    return a === b;
+  // Helper para formatear fecha
+  Handlebars.registerHelper('formatDate', function(date) {
+    const d = new Date(date);
+    return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
   });
+
+  function getToken() {
+    return localStorage.getItem('token');
+  }
+
+  function renderRole(role) {
+    const roleContainer = document.getElementById('profileRole');
+    if (!roleContainer) return;
+
+    if (role === 'admin') {
+      roleContainer.innerHTML = '<span class="badge badge-admin">👑 Administrador</span>';
+    } else {
+      roleContainer.innerHTML = '<span class="badge badge-user">👤 Usuario</span>';
+    }
+  }
+
+  function setProfileField(id, value) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = value || '—';
+    }
+  }
+
+  function formatDate(date) {
+    if (!date) return '—';
+    const d = new Date(date);
+    return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  async function loadCurrentUser() {
+    const token = getToken();
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/sessions/current', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const user = data.user;
+      if (!user) return;
+
+      setProfileField('profileName', `${user.first_name} ${user.last_name}`.trim());
+      setProfileField('profileEmail', user.email);
+      setProfileField('profileAge', user.age ? `${user.age} años` : '—');
+      setProfileField('profileId', user.id || user._id);
+      renderRole(user.role);
+    } catch (error) {
+      console.error('Error cargando usuario actual:', error);
+    }
+  }
+
+  async function loadPurchaseHistory() {
+    const container = document.getElementById('purchaseHistory');
+    if (!container) return;
+
+    const token = getToken();
+    if (!token) {
+      container.innerHTML = '<p>Debes iniciar sesión para ver el historial.</p>';
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/purchases/my-tickets?limit=10', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        container.innerHTML = '<p>No se pudo cargar el historial.</p>';
+        return;
+      }
+
+      const data = await response.json();
+      const tickets = data.tickets || [];
+
+      if (tickets.length === 0) {
+        container.innerHTML = '<p>No hay compras registradas.</p>';
+        return;
+      }
+
+      container.innerHTML = tickets.map(ticket => {
+        const statusLabel = ticket.status === 'completed' ? 'Completada' : ticket.status === 'cancelled' ? 'Cancelada' : 'Pendiente';
+        const total = ticket.total?.toFixed ? ticket.total.toFixed(2) : ticket.total;
+        const itemsCount = ticket.quantity || ticket.products?.length || 0;
+        const products = ticket.products || [];
+        const productsHtml = products.length
+          ? `<ul class="history-products">
+              ${products.map(item => {
+                const name = item.name || item.product?.name || 'Producto';
+                const qty = item.quantity || 0;
+                return `<li>${name} <span class="history-qty">x${qty}</span></li>`;
+              }).join('')}
+            </ul>`
+          : '<p class="history-empty">Sin productos</p>';
+        return `
+          <div class="history-item">
+            <div>
+              <div class="history-code">${ticket.code}</div>
+              <div class="history-date">${formatDate(ticket.purchase_datetime)}</div>
+            </div>
+            <div class="history-meta">
+              <span class="history-status">${statusLabel}</span>
+              <span class="history-items">${itemsCount} items</span>
+              <span class="history-total">$${total}</span>
+            </div>
+            <div class="history-products-wrapper">
+              ${productsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (error) {
+      console.error('Error cargando historial:', error);
+      container.innerHTML = '<p>Error al cargar historial.</p>';
+    }
+  }
 
   // Cerrar sesión
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try {
-      const response = await fetch('/api/users/logout', {
+      const response = await fetch('/api/sessions/logout', {
         method: 'POST'
       });
       
       const data = await response.json();
       
       if (data.status === 'success') {
-        window.location.href = data.redirect || '/users/login';
+        window.location.href = data.redirect || '/login';
       }
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
-      window.location.href = '/users/login';
+      window.location.href = '/login';
     }
   });
+
+  loadCurrentUser();
+  loadPurchaseHistory();
 </script>
 
 <style>
-  .current-user-section {
+  .user-profile {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .profile-card {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 2.5rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+  }
+
+  .profile-header {
     display: flex;
-    justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    padding: 2rem;
-  }
-
-  .user-card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    padding: 3rem;
-    max-width: 500px;
-    width: 100%;
-  }
-
-  .user-card h1 {
-    text-align: center;
-    color: #333;
+    gap: 2rem;
     margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
   }
 
-  .user-details {
-    margin-bottom: 2rem;
+  .profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: white;
   }
 
-  .user-field {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #eee;
-  }
-
-  .user-field label {
-    display: block;
-    font-weight: bold;
-    color: #666;
-    margin-bottom: 0.5rem;
-  }
-
-  .user-field p {
+  .profile-header h2 {
     margin: 0;
-    color: #333;
-    font-size: 1.1rem;
+    color: var(--text-primary);
+    font-size: 1.8rem;
+  }
+
+  .profile-details {
+    margin-bottom: 2rem;
+  }
+
+  .detail-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+    align-items: center;
+  }
+
+  .detail-row:last-child {
+    border-bottom: none;
+  }
+
+  .detail-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .detail-value {
+    color: var(--text-primary);
+    font-size: 1rem;
     word-break: break-all;
   }
 
   .badge {
     display: inline-block;
     padding: 0.5rem 1rem;
-    border-radius: 20px;
+    border-radius: 6px;
     font-size: 0.9rem;
-    font-weight: bold;
+    font-weight: 600;
   }
 
   .badge-admin {
-    background: #ffd700;
-    color: #333;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: white;
   }
 
   .badge-user {
-    background: #e7f3ff;
-    color: #0066cc;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 
-  .user-actions {
+  .quick-links {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+
+  .history-list {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .history-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    gap: 0.75rem;
+  }
+
+  .history-code {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .history-date {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .history-meta {
     display: flex;
     gap: 1rem;
-    justify-content: center;
+    align-items: center;
+    font-weight: 600;
+    flex-wrap: wrap;
   }
 
-  .btn-danger {
-    padding: 0.75rem 2rem;
-    background: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background 0.3s;
+  .history-status {
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    background: var(--bg-tertiary);
   }
 
-  .btn-danger:hover {
-    background: #c82333;
+  .history-products-wrapper {
+    width: 100%;
+  }
+
+  .history-products {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.35rem;
+    color: var(--text-secondary);
+  }
+
+  .history-products li {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px dashed var(--border-color);
+    padding-bottom: 0.35rem;
+  }
+
+  .history-products li:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .history-qty {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .history-empty {
+    color: var(--text-light);
+    margin: 0;
+  }
+
+  .quick-links a {
+    padding: 0.875rem;
+    text-align: center;
+    border-radius: 8px;
+    font-weight: 600;
+  }
+
+  @media (max-width: 600px) {
+    .detail-row {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+
+    .profile-header {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .profile-avatar {
+      width: 100px;
+      height: 100px;
+      font-size: 2.5rem;
+    }
+
+    .profile-header h2 {
+      font-size: 1.5rem;
+    }
+
+    .quick-links {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

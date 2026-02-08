@@ -1,15 +1,16 @@
-<div class="container">
-  <div class="header">
-    <div class="back-button">
+<div class="cart-container">
+  <div class="cart-header">
+    <div>
       <a href="/products" class="btn-secondary">← Volver a Productos</a>
     </div>
-    <h1>Mi Carrito</h1>
-    <button id="logoutBtn" class="btn-secondary">Cerrar Sesión</button>
+    <h1>🛒 Mi Carrito</h1>
+    <div>
+      <a href="/current" class="btn-secondary">Mi Perfil</a>
+      <button id="logoutBtn" class="btn-secondary">Cerrar Sesión</button>
+    </div>
   </div>
 
-  <div class="cart-section">
-    <div id="cartContent"></div>
-  </div>
+  <div id="cartContent"></div>
 </div>
 
 <script>
@@ -21,7 +22,7 @@
   // Cargar carrito
   async function loadCart() {
     try {
-      const response = await fetch('/api/cart', {
+      const response = await fetch('/api/carts/', {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -62,39 +63,55 @@
 
       return `
         <div class="cart-item">
+          <div class="product-card-image">
+            📦
+          </div>
           <div class="item-info">
             <h3>${item.product.name}</h3>
-            <p class="price">Precio: $${item.product.price}</p>
-            <p class="quantity">Cantidad: 
-              <input 
-                type="number" 
-                min="1" 
-                value="${item.quantity}" 
-                data-product-id="${item.product._id}"
-                onchange="updateQuantity('${item.product._id}', this.value)"
-                class="quantity-input"
-              >
-            </p>
-            <p class="subtotal">Subtotal: $${subtotal}</p>
+            <p>Precio unitario: <strong>$${item.product.price.toFixed(2)}</strong></p>
           </div>
+          <div class="item-quantity">
+            <button onclick="updateQuantity('${item.product._id}', ${item.quantity - 1})">−</button>
+            <input 
+              type="number" 
+              min="1" 
+              value="${item.quantity}" 
+              data-product-id="${item.product._id}"
+              onchange="updateQuantity('${item.product._id}', this.value)"
+            >
+            <button onclick="updateQuantity('${item.product._id}', ${item.quantity + 1})">+</button>
+          </div>
+          <div class="item-price">$${subtotal.toFixed(2)}</div>
           <button 
             class="btn-danger" 
             onclick="removeFromCart('${item.product._id}')">
-            Eliminar
+            ✕
           </button>
         </div>
       `;
     }).join('');
 
     container.innerHTML = `
-      <div class="cart-items">
-        ${productsHTML}
-      </div>
-      <div class="cart-summary">
-        <h2>Total: $${total}</h2>
-        <div class="cart-actions">
-          <button class="btn-primary" onclick="checkout()">Comprar</button>
-          <button class="btn-secondary" onclick="clearCart()">Vaciar carrito</button>
+      <div class="cart-content">
+        <div class="cart-items">
+          ${productsHTML}
+        </div>
+        <div class="cart-summary">
+          <h2>Resumen de Compra</h2>
+          <div class="summary-row">
+            <span>Subtotal:</span>
+            <span>$${total.toFixed(2)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Envío:</span>
+            <span>$0.00</span>
+          </div>
+          <div class="summary-row total">
+            <span>Total:</span>
+            <span>$${total.toFixed(2)}</span>
+          </div>
+          <button class="btn-primary" onclick="checkout()">Proceder al Pago</button>
+          <button class="btn-secondary" onclick="clearCart()" style="width: 100%; margin-top: 1rem;">Vaciar Carrito</button>
         </div>
       </div>
     `;
@@ -102,7 +119,7 @@
 
   async function updateQuantity(productId, quantity) {
     try {
-      const response = await fetch(`/api/cart/update/${productId}`, {
+      const response = await fetch(`/api/carts/update/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -127,7 +144,7 @@
   async function removeFromCart(productId) {
     if (confirm('¿Eliminar producto del carrito?')) {
       try {
-        const response = await fetch(`/api/cart/remove/${productId}`, {
+        const response = await fetch(`/api/carts/remove/${productId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${getToken()}`
@@ -149,48 +166,112 @@
   }
 
   async function clearCart() {
-    if (confirm('¿Vaciar el carrito completamente?')) {
-      try {
-        const response = await fetch('/api/cart/clear', {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${getToken()}`
-          }
-        });
-
-        const data = await response.json();
-
-        if (data.status === 'success') {
-          loadCart(); // Recargar carrito
-        } else {
-          alert('Error al vaciar carrito');
+    try {
+      const response = await fetch('/api/carts/clear', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${getToken()}`
         }
-      } catch (error) {
-        console.error('Error vaciando carrito:', error);
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        loadCart(); // Recargar carrito
+      } else {
         alert('Error al vaciar carrito');
       }
+    } catch (error) {
+      console.error('Error vaciando carrito:', error);
+      alert('Error al vaciar carrito');
     }
   }
 
   function checkout() {
-    alert('Funcionalidad de compra en desarrollo');
-    // Aquí implementarías la lógica de pago
+    // Obtener items del carrito desde el input de cantidades
+    const quantityInputs = document.querySelectorAll('input[data-product-id]');
+    
+    if (quantityInputs.length === 0) {
+      alert('El carrito está vacío');
+      return;
+    }
+
+    // Preparar items para la compra
+    const items = Array.from(quantityInputs).map(input => {
+      const productId = input.getAttribute('data-product-id');
+      const quantity = parseInt(input.value) || 1;
+      return { product_id: productId, quantity };
+    });
+
+    // Procesar compra
+    processPurchase(items);
+  }
+
+  async function processPurchase(items) {
+    try {
+      const response = await fetch('/api/purchases/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        body: JSON.stringify({
+          items: items
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        console.log('💳 Compra procesada:', data.ticket);
+        
+        // Mostrar resultado de la compra
+        const message = data.ticket.status === 'completed' 
+          ? `✅ ¡Compra exitosa!\\n\\nTicket: ${data.ticket.code}\\nTotal: $${data.ticket.total.toFixed(2)}\\n\\nGracias por tu compra`
+          : `⚠️ Compra Parcial\\n\\nTicket: ${data.ticket.code}\\nProductos comprados: ${data.ticket.quantity}\\nTotal: $${data.ticket.total.toFixed(2)}\\n\\nAlgunos productos no tuvieron stock suficiente`;
+        
+        alert(message);
+        
+        // Vaciar carrito después de la compra exitosa
+        if (data.ticket.status === 'completed') {
+          clearCart();
+          setTimeout(() => {
+            window.location.href = '/products';
+          }, 1000);
+        } else {
+          loadCart(); // Recargar carrito para actualizar cantidades
+        }
+      } else {
+        alert('Error en la compra: ' + (data.message || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error procesando compra:', error);
+      alert('Error al procesar la compra. Intenta de nuevo.');
+    }
   }
 
   // Cerrar sesión
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try {
-      const response = await fetch('/api/users/logout', {
+      const response = await fetch('/api/sessions/logout', {
         method: 'POST'
       });
 
       const data = await response.json();
 
       if (data.status === 'success') {
-        window.location.href = data.redirect || '/login';
+        // Limpiar token
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      } else {
+        // Limpiar token e ir a login de todas formas
+        localStorage.removeItem('token');
+        window.location.href = '/login';
       }
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
+      // Limpiar token e ir a login de todas formas
+      localStorage.removeItem('token');
       window.location.href = '/login';
     }
   });
@@ -198,110 +279,3 @@
   // Cargar carrito al iniciar
   loadCart();
 </script>
-
-<style>
-  .cart-section {
-    margin-top: 2rem;
-  }
-
-  .empty-cart {
-    text-align: center;
-    padding: 3rem;
-    background: #f5f5f5;
-    border-radius: 8px;
-  }
-
-  .cart-items {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 2rem;
-  }
-
-  .cart-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    background: #f9f9f9;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border-left: 4px solid #007bff;
-  }
-
-  .item-info {
-    flex: 1;
-  }
-
-  .item-info h3 {
-    margin: 0 0 0.5rem 0;
-    color: #333;
-  }
-
-  .price {
-    color: #666;
-    font-size: 0.95rem;
-    margin: 0.25rem 0;
-  }
-
-  .quantity {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.25rem 0;
-  }
-
-  .quantity-input {
-    width: 60px;
-    padding: 0.25rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-  }
-
-  .subtotal {
-    font-weight: bold;
-    color: #007bff;
-    margin: 0.5rem 0 0 0;
-  }
-
-  .btn-danger {
-    padding: 0.5rem 1rem;
-    background: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.9rem;
-  }
-
-  .btn-danger:hover {
-    background: #c82333;
-  }
-
-  .cart-summary {
-    background: #f5f5f5;
-    padding: 2rem;
-    border-radius: 8px;
-    text-align: right;
-  }
-
-  .cart-summary h2 {
-    margin: 0 0 1.5rem 0;
-    font-size: 1.8rem;
-    color: #333;
-  }
-
-  .cart-actions {
-    display: flex;
-    gap: 1rem;
-    justify-content: flex-end;
-  }
-
-  .back-button {
-    margin-bottom: 1rem;
-  }
-
-  .back-button a {
-    display: inline-block;
-    text-decoration: none;
-  }
-</style>

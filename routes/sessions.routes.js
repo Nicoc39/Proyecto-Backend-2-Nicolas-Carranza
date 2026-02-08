@@ -1,95 +1,58 @@
 import { Router } from 'express';
 import passport from 'passport';
-import { generateToken } from '../utils/jwtUtils.js';
+import SessionController from '../controllers/sessionController.js';
 
 const router = Router();
 
 // Registro de usuario con Passport
-router.post('/register', 
-  passport.authenticate('register', { 
-    session: false,
-    failureRedirect: '/register'
-  }),
-  async (req, res) => {
-    // Generar JWT
-    const token = generateToken({
-      id: req.user._id,
-      email: req.user.email,
-      role: req.user.role
-    });
-
-    res.json({ 
-      status: 'success', 
-      message: 'Usuario registrado exitosamente',
-      token,
-      user: {
-        id: req.user._id,
-        first_name: req.user.first_name,
-        last_name: req.user.last_name,
-        email: req.user.email,
-        age: req.user.age,
-        role: req.user.role,
-        cart: req.user.cart
-      }
-    });
-  }
-);
-
-// Login de usuario con Passport y JWT
-router.post('/login',
-  passport.authenticate('login', { 
-    session: false,
-    failureRedirect: '/login'
-  }),
-  async (req, res) => {
-    try {
-      // Generar JWT
-      const token = generateToken({
-        id: req.user._id,
-        email: req.user.email,
-        role: req.user.role
-      });
-
-      console.log('✓ Token generado:', token.substring(0, 20) + '...');
-
-      // También crear sesión para compatibilidad con vistas
-      if (req.session) {
-        req.session.user = {
-          id: req.user._id,
-          first_name: req.user.first_name,
-          last_name: req.user.last_name,
-          email: req.user.email,
-          age: req.user.age,
-          role: req.user.role,
-          cart: req.user.cart
-        };
-      }
-
-      res.json({ 
-        status: 'success', 
-        message: 'Login exitoso',
-        token,
-        user: {
-          id: req.user._id,
-          first_name: req.user.first_name,
-          last_name: req.user.last_name,
-          email: req.user.email,
-          age: req.user.age,
-          role: req.user.role,
-          cart: req.user.cart
-        },
-        redirect: '/products'
-      });
-    } catch (error) {
-      console.error('Error en login:', error);
-      res.status(500).json({
+router.post('/register', (req, res, next) => {
+  passport.authenticate('register', { session: false }, (err, user, info) => {
+    if (err) {
+      return res.status(500).json({
         status: 'error',
-        message: 'Error al procesar login',
-        error: error.message
+        message: 'Error en registro'
       });
     }
-  }
-);
+
+    if (!user) {
+      return res.status(400).json({
+        status: 'error',
+        message: info?.message || 'Registro inválido'
+      });
+    }
+
+    req.user = user;
+    return SessionController.handleRegister(req, res);
+  })(req, res, next);
+});
+
+// Login de usuario con Passport y JWT
+router.post('/login', (req, res, next) => {
+  passport.authenticate('login', { session: false }, (err, user, info) => {
+    if (err) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error en login'
+      });
+    }
+
+    if (!user) {
+      return res.status(401).json({
+        status: 'error',
+        message: info?.message || 'Credenciales inválidas'
+      });
+    }
+
+    req.user = user;
+    return SessionController.handleLogin(req, res);
+  })(req, res, next);
+});
+
+// Solicitar recuperación de contraseña
+router.post('/request-password-reset', SessionController.requestPasswordReset);
+
+// Restablecer contraseña
+router.post('/reset-password', SessionController.resetPassword);
 
 // Autenticación con GitHub - Redirige a GitHub
 router.get('/github',
@@ -102,30 +65,7 @@ router.get('/github/callback',
     session: false,
     failureRedirect: '/login' 
   }),
-  (req, res) => {
-    // Generar JWT
-    const token = generateToken({
-      id: req.user._id,
-      email: req.user.email,
-      role: req.user.role
-    });
-
-    // Guardar datos en sesión para compatibilidad con vistas
-    if (req.session) {
-      req.session.user = {
-        id: req.user._id,
-        first_name: req.user.first_name,
-        last_name: req.user.last_name,
-        email: req.user.email,
-        age: req.user.age,
-        role: req.user.role,
-        cart: req.user.cart
-      };
-    }
-
-    // Redirigir a productos con token en query (para guardarlo en localStorage)
-    res.redirect(`/products?token=${token}`);
-  }
+  SessionController.handleGithubCallback
 );
 
 // Ruta /current - Valida usuario con JWT usando estrategia "current" de Passport
@@ -134,50 +74,10 @@ router.get('/current',
     session: false,
     failureRedirect: '/login'
   }),
-  async (req, res) => {
-    try {
-      // El middleware passport.authenticate ya validó el token y agregó req.user
-      res.json({
-        status: 'success',
-        user: {
-          id: req.user._id,
-          first_name: req.user.first_name,
-          last_name: req.user.last_name,
-          email: req.user.email,
-          age: req.user.age,
-          role: req.user.role,
-          cart: req.user.cart
-        }
-      });
-    } catch (error) {
-      res.status(500).json({
-        status: 'error',
-        message: 'Error al obtener datos del usuario'
-      });
-    }
-  }
+  SessionController.handleGetCurrent
 );
 
 // Logout
-router.post('/logout', (req, res) => {
-  // Con JWT no hay mucho que hacer en el servidor
-  // El cliente debe eliminar el token
-  if (req.session) {
-    req.session.destroy(err => {
-      if (err) {
-        return res.status(500).json({ 
-          status: 'error', 
-          message: 'Error al cerrar sesión' 
-        });
-      }
-    });
-  }
-  
-  res.json({ 
-    status: 'success', 
-    message: 'Sesión cerrada exitosamente',
-    redirect: '/login'
-  });
-});
+router.post('/logout', SessionController.handleLogout);
 
 export default router;

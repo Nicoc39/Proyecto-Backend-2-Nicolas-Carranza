@@ -1,52 +1,31 @@
 import { Router } from 'express';
-import { verifyToken } from '../utils/jwtUtils.js';
 
 const router = Router();
 
-// Middleware para verificar autenticación (cookie)
+// Middleware para verificar autenticación
 const isAuthenticated = (req, res, next) => {
-  const token = req.signedCookies.currentUser;
-  
-  if (!token) {
-    return res.redirect('/login');
-  }
-
-  try {
-    const decoded = verifyToken(token);
-    req.user = decoded;
+  // Verificar si hay sesión (para compatibilidad)
+  if (req.session && req.session.user) {
     return next();
-  } catch (error) {
-    res.clearCookie('currentUser');
-    res.redirect('/login');
   }
+  
+  // Si no hay sesión, redirigir a login
+  // El frontend manejará la autenticación con JWT
+  res.redirect('/login');
 };
 
 // Middleware para verificar que NO esté autenticado
 const isNotAuthenticated = (req, res, next) => {
-  const token = req.signedCookies.currentUser;
-  
-  if (token) {
-    try {
-      verifyToken(token);
-      return res.redirect('/products');
-    } catch (error) {
-      res.clearCookie('currentUser');
-    }
+  if (req.session && req.session.user) {
+    return res.redirect('/products');
   }
   next();
 };
 
 // Ruta principal - redirige según estado de sesión
 router.get('/', (req, res) => {
-  const token = req.signedCookies.currentUser;
-  
-  if (token) {
-    try {
-      verifyToken(token);
-      return res.redirect('/products');
-    } catch (error) {
-      res.clearCookie('currentUser');
-    }
+  if (req.session && req.session.user) {
+    return res.redirect('/products');
   }
   res.redirect('/login');
 });
@@ -61,23 +40,68 @@ router.get('/login', isNotAuthenticated, (req, res) => {
 // Vista de registro
 router.get('/register', isNotAuthenticated, (req, res) => {
   res.render('register', {
-    title: 'Registrarse'
+    title: 'Registro de Usuario'
   });
 });
 
-// Vista de productos (protegida)
-router.get('/products', isAuthenticated, (req, res) => {
+// Vista de usuario actual
+router.get('/current', (req, res) => {
+  res.render('current', {
+    title: 'Usuario Actual',
+    user: req.session?.user || null
+  });
+});
+
+// Vista para solicitar recuperacion de contrasena
+router.get('/request-password-reset', isNotAuthenticated, (req, res) => {
+  res.render('request-password-reset', {
+    title: 'Recuperar Contrasena'
+  });
+});
+
+// Vista de restablecer contraseña
+router.get('/reset-password', isNotAuthenticated, (req, res) => {
+  res.render('reset-password', {
+    title: 'Restablecer Contraseña'
+  });
+});
+
+// Vista de productos - MODIFICADA para JWT
+router.get('/products', (req, res) => {
+  // Si hay sesión de servidor, usar esos datos
+  if (req.session && req.session.user) {
+    return res.render('products', {
+      title: 'Productos',
+      user: req.session.user
+    });
+  }
+  
+  // Si no hay sesión, renderizar la vista de todos modos
+  // El frontend verificará el JWT y obtendrá los datos del usuario
   res.render('products', {
     title: 'Productos',
-    user: req.user
+    user: null // El frontend cargará los datos con JWT
   });
 });
 
-// Vista de carrito (protegida)
-router.get('/cart', isAuthenticated, (req, res) => {
+// Vista de admin de productos
+router.get('/admin/products', (req, res) => {
+  res.render('admin-products', {
+    title: 'Admin Productos'
+  });
+});
+
+// Vista de debug - NUEVA
+router.get('/debug', (req, res) => {
+  res.render('debug', {
+    title: 'Debug JWT'
+  });
+});
+
+// Vista del carrito
+router.get('/cart', (req, res) => {
   res.render('cart', {
-    title: 'Mi Carrito',
-    user: req.user
+    title: 'Carrito de Compras'
   });
 });
 

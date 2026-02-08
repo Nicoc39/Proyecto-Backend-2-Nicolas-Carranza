@@ -38,6 +38,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     unique: true,
     sparse: true // Permite valores null sin violar la restricción unique
+  },
+  passwordResetToken: {
+    type: String,
+    default: null
+  },
+  passwordResetExpires: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

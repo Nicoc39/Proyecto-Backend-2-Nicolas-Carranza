@@ -1,0 +1,286 @@
+<div class="products-container">
+  <nav class="products-navbar">
+    <div class="navbar-brand">
+      <div class="brand-logo">
+        <div class="logo-bg">
+          <img class="logo-img" src="https://i.imgur.com/oFIPJbi.jpeg" alt="NUBE NEGRA logo">
+        </div>
+      </div>
+    </div>
+    <div class="navbar-actions">
+      <button class="nav-btn" onclick="window.location.href='/products'" title="Volver">
+        ⬅️
+      </button>
+      <button id="logoutBtn" class="nav-btn" title="Cerrar sesión">
+        🚪
+      </button>
+    </div>
+  </nav>
+
+  <div class="products-hero">
+    <div class="hero-content">
+      <h1>Admin Productos</h1>
+      <p>Crear, editar y eliminar productos</p>
+    </div>
+  </div>
+
+  <div class="products-main">
+    <div class="admin-grid">
+      <div class="admin-card">
+        <h2>Crear / Editar</h2>
+        <form id="productForm">
+          <input type="hidden" id="productId" name="productId">
+          <div class="form-group">
+            <label for="name">Nombre</label>
+            <input id="name" name="name" required>
+          </div>
+          <div class="form-group">
+            <label for="author">Autor</label>
+            <input id="author" name="author">
+          </div>
+          <div class="form-group">
+            <label for="description">Descripcion</label>
+            <input id="description" name="description" required>
+          </div>
+          <div class="form-group">
+            <label for="price">Precio</label>
+            <input id="price" name="price" type="number" min="0" step="0.01" required>
+          </div>
+          <div class="form-group">
+            <label for="stock">Stock</label>
+            <input id="stock" name="stock" type="number" min="0" step="1" required>
+          </div>
+          <div class="form-group">
+            <label for="category">Categoria</label>
+            <input id="category" name="category" required>
+          </div>
+          <div class="form-group">
+            <label for="thumbnail">Thumbnail URL</label>
+            <input id="thumbnail" name="thumbnail">
+          </div>
+          <button class="btn-primary" type="submit">Guardar</button>
+          <button class="btn-secondary" type="button" id="clearFormBtn">Limpiar</button>
+        </form>
+      </div>
+
+      <div class="admin-card">
+        <h2>Productos</h2>
+        <div id="productsList" class="admin-list">
+          <p class="loading-text">Cargando productos...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function getToken() {
+    return localStorage.getItem('token');
+  }
+
+  async function ensureAdmin() {
+    const token = getToken();
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/sessions/current', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const data = await response.json();
+      if (!data.user || data.user.role !== 'admin') {
+        window.location.href = '/products';
+      }
+    } catch (error) {
+      window.location.href = '/login';
+    }
+  }
+
+  async function loadProducts() {
+    const list = document.getElementById('productsList');
+    try {
+      const response = await fetch('/api/products');
+      const data = await response.json();
+      const products = data.products || [];
+
+      if (!products.length) {
+        list.innerHTML = '<p>No hay productos.</p>';
+        return;
+      }
+
+      list.innerHTML = products.map(product => {
+        return `
+          <div class="admin-item">
+            <div>
+              <strong>${product.name}</strong>
+              <div class="admin-item-meta">$${product.price} | Stock ${product.stock}</div>
+            </div>
+            <div class="admin-actions">
+              <button class="btn-secondary" type="button" onclick="editProduct('${product._id}')">Editar</button>
+              <button class="btn-danger" type="button" onclick="deleteProduct('${product._id}')">Eliminar</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (error) {
+      list.innerHTML = '<p>Error al cargar productos.</p>';
+    }
+  }
+
+  function fillForm(product) {
+    document.getElementById('productId').value = product._id || '';
+    document.getElementById('name').value = product.name || '';
+    document.getElementById('author').value = product.author || '';
+    document.getElementById('description').value = product.description || '';
+    document.getElementById('price').value = product.price || 0;
+    document.getElementById('stock').value = product.stock || 0;
+    document.getElementById('category').value = product.category || '';
+    document.getElementById('thumbnail').value = product.thumbnail || '';
+  }
+
+  async function editProduct(productId) {
+    try {
+      const response = await fetch(`/api/products/${productId}`);
+      const data = await response.json();
+      if (data.product) {
+        fillForm(data.product);
+      }
+    } catch (error) {
+      console.error('Error cargando producto:', error);
+    }
+  }
+
+  async function deleteProduct(productId) {
+    if (!confirm('Eliminar producto?')) return;
+
+    try {
+      const response = await fetch(`/api/products/${productId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        loadProducts();
+      }
+    } catch (error) {
+      console.error('Error eliminando producto:', error);
+    }
+  }
+
+  document.getElementById('productForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const productId = document.getElementById('productId').value;
+    const payload = {
+      name: document.getElementById('name').value,
+      author: document.getElementById('author').value,
+      description: document.getElementById('description').value,
+      price: Number(document.getElementById('price').value),
+      stock: Number(document.getElementById('stock').value),
+      category: document.getElementById('category').value,
+      thumbnail: document.getElementById('thumbnail').value
+    };
+
+    const method = productId ? 'PUT' : 'POST';
+    const url = productId ? `/api/products/${productId}` : '/api/products';
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        document.getElementById('productForm').reset();
+        document.getElementById('productId').value = '';
+        loadProducts();
+      }
+    } catch (error) {
+      console.error('Error guardando producto:', error);
+    }
+  });
+
+  document.getElementById('clearFormBtn').addEventListener('click', () => {
+    document.getElementById('productForm').reset();
+    document.getElementById('productId').value = '';
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try {
+      const response = await fetch('/api/sessions/logout', {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        window.location.href = data.redirect || '/login';
+      }
+    } catch (error) {
+      window.location.href = '/login';
+    }
+  });
+
+  ensureAdmin();
+  loadProducts();
+</script>
+
+<style>
+  .admin-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 2rem;
+  }
+
+  .admin-card {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+  }
+
+  .admin-list {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .admin-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+  }
+
+  .admin-item-meta {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+
+  .admin-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 900px) {
+    .admin-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

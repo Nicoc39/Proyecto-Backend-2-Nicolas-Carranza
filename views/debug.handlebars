@@ -1,0 +1,319 @@
+<div class="container">
+  <div class="debug-container">
+    <h1>🔧 Página de Debug JWT</h1>
+    
+    <div class="debug-section">
+      <h2>1. Estado del localStorage</h2>
+      <button onclick="checkLocalStorage()" class="btn-primary">Verificar localStorage</button>
+      <pre id="localStorageResult"></pre>
+    </div>
+
+    <div class="debug-section">
+      <h2>2. Probar Login</h2>
+      <input type="email" id="debugEmail" placeholder="Email" value="test@example.com">
+      <input type="password" id="debugPassword" placeholder="Password" value="12345">
+      <button onclick="testLogin()" class="btn-primary">Probar Login</button>
+      <pre id="loginResult"></pre>
+    </div>
+
+    <div class="debug-section">
+      <h2>3. Verificar Token Actual</h2>
+      <button onclick="verifyToken()" class="btn-primary">Verificar Token</button>
+      <pre id="tokenResult"></pre>
+    </div>
+
+    <div class="debug-section">
+      <h2>4. Probar /current</h2>
+      <button onclick="testCurrent()" class="btn-primary">Probar /current</button>
+      <pre id="currentResult"></pre>
+    </div>
+
+    <div class="debug-section">
+      <h2>5. Acciones</h2>
+      <button onclick="clearAll()" class="btn-secondary">Limpiar Todo</button>
+      <button onclick="goToLogin()" class="btn-primary">Ir a Login</button>
+      <button onclick="goToProducts()" class="btn-primary">Ir a Productos</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function log(elementId, message, type = 'info') {
+  const element = document.getElementById(elementId);
+  const timestamp = new Date().toLocaleTimeString();
+  const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+  element.textContent = `[${timestamp}] ${icon} ${message}`;
+}
+
+function checkLocalStorage() {
+  const result = document.getElementById('localStorageResult');
+  
+  try {
+    // Verificar si localStorage está disponible
+    if (typeof(Storage) === "undefined") {
+      result.textContent = '❌ localStorage NO está disponible en este navegador';
+      return;
+    }
+
+    // Verificar token
+    const token = localStorage.getItem('token');
+    
+    let output = '✅ localStorage está disponible\n\n';
+    
+    if (token) {
+      output += `🔑 Token encontrado:\n${token.substring(0, 50)}...\n\n`;
+      output += `📏 Longitud: ${token.length} caracteres\n`;
+      
+      // Intentar decodificar
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          output += `\n📦 Payload decodificado:\n${JSON.stringify(payload, null, 2)}`;
+          
+          // Verificar expiración
+          if (payload.exp) {
+            const expDate = new Date(payload.exp * 1000);
+            const now = new Date();
+            output += `\n\n⏰ Expira: ${expDate.toLocaleString()}`;
+            output += `\n⏰ Ahora: ${now.toLocaleString()}`;
+            output += `\n${expDate > now ? '✅ Token válido' : '❌ Token expirado'}`;
+          }
+        }
+      } catch (e) {
+        output += `\n⚠️ No se pudo decodificar: ${e.message}`;
+      }
+    } else {
+      output += '❌ NO hay token en localStorage';
+    }
+    
+    // Listar todas las keys
+    output += '\n\n📋 Todas las keys en localStorage:\n';
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      output += `  - ${key}\n`;
+    }
+    
+    result.textContent = output;
+  } catch (error) {
+    result.textContent = `❌ Error: ${error.message}`;
+  }
+}
+
+async function testLogin() {
+  const email = document.getElementById('debugEmail').value;
+  const password = document.getElementById('debugPassword').value;
+  const result = document.getElementById('loginResult');
+  
+  result.textContent = '⏳ Probando login...';
+  
+  try {
+    const response = await fetch('/api/sessions/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+    
+    let output = `📊 Status: ${response.status}\n\n`;
+    output += `📦 Respuesta:\n${JSON.stringify(data, null, 2)}\n\n`;
+    
+    if (response.ok && data.token) {
+      output += '✅ Token recibido\n';
+      output += `🔑 Token: ${data.token.substring(0, 50)}...\n\n`;
+      
+      // Intentar guardar
+      try {
+        localStorage.setItem('token', data.token);
+        const saved = localStorage.getItem('token');
+        if (saved === data.token) {
+          output += '✅ Token guardado correctamente en localStorage';
+        } else {
+          output += '❌ Token NO se guardó correctamente';
+        }
+      } catch (e) {
+        output += `❌ Error guardando token: ${e.message}`;
+      }
+    } else {
+      output += '❌ Login fallido';
+    }
+    
+    result.textContent = output;
+  } catch (error) {
+    result.textContent = `❌ Error: ${error.message}`;
+  }
+}
+
+function verifyToken() {
+  const result = document.getElementById('tokenResult');
+  
+  try {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      result.textContent = '❌ No hay token en localStorage';
+      return;
+    }
+    
+    let output = `🔑 Token: ${token.substring(0, 50)}...\n\n`;
+    
+    // Decodificar
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      result.textContent = '❌ Token inválido (no tiene 3 partes)';
+      return;
+    }
+    
+    const payload = JSON.parse(atob(parts[1]));
+    output += `📦 Payload:\n${JSON.stringify(payload, null, 2)}\n\n`;
+    
+    // Verificar expiración
+    if (payload.exp) {
+      const expDate = new Date(payload.exp * 1000);
+      const now = new Date();
+      output += `⏰ Expira: ${expDate.toLocaleString()}\n`;
+      output += `⏰ Ahora: ${now.toLocaleString()}\n`;
+      output += `${expDate > now ? '✅ Token NO expirado' : '❌ Token EXPIRADO'}`;
+    }
+    
+    result.textContent = output;
+  } catch (error) {
+    result.textContent = `❌ Error: ${error.message}`;
+  }
+}
+
+async function testCurrent() {
+  const result = document.getElementById('currentResult');
+  const token = localStorage.getItem('token');
+  
+  if (!token) {
+    result.textContent = '❌ No hay token en localStorage';
+    return;
+  }
+  
+  result.textContent = '⏳ Probando /current...';
+  
+  try {
+    const response = await fetch('/api/sessions/current', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+    
+    let output = `📊 Status: ${response.status}\n\n`;
+    output += `📦 Respuesta:\n${JSON.stringify(data, null, 2)}`;
+    
+    result.textContent = output;
+  } catch (error) {
+    result.textContent = `❌ Error: ${error.message}`;
+  }
+}
+
+function clearAll() {
+  try {
+    localStorage.clear();
+    sessionStorage.clear();
+    alert('✅ localStorage y sessionStorage limpiados');
+    location.reload();
+  } catch (error) {
+    alert(`❌ Error: ${error.message}`);
+  }
+}
+
+function goToLogin() {
+  window.location.href = '/login';
+}
+
+function goToProducts() {
+  window.location.href = '/products';
+}
+
+// Auto-check al cargar
+window.addEventListener('load', () => {
+  checkLocalStorage();
+});
+</script>
+
+<style>
+.debug-container {
+  max-width: 900px;
+  margin: 50px auto;
+  padding: 30px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+}
+
+.debug-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.debug-section h2 {
+  margin-top: 0;
+  color: #333;
+}
+
+.debug-section pre {
+  background: #2d2d2d;
+  color: #f8f8f2;
+  padding: 15px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.debug-section input {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.debug-section button {
+  margin: 10px 10px 10px 0;
+}
+
+.btn-primary, .btn-secondary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #c82333;
+}
+</style>
