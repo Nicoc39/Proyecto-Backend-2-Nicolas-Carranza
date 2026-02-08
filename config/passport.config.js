@@ -97,9 +97,14 @@ passport.use('github', new GitHubStrategy(
         const newCart = await Cart.create({ products: [] });
 
         // Crear nuevo usuario desde GitHub
+        const displayName = profile.displayName || profile.username || 'GitHub User';
+        const nameParts = displayName.split(' ');
+        const firstName = nameParts.shift() || 'GitHub';
+        const lastName = nameParts.join(' ').trim() || 'User';
+
         user = await User.create({
-          first_name: profile.displayName || profile.username,
-          last_name: '',
+          first_name: firstName,
+          last_name: lastName,
           email,
           age: 0,
           password: '', // No tiene contraseña local
