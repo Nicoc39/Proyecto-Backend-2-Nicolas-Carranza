@@ -2,6 +2,8 @@
 
 Proyecto de Backend con Express.js + MongoDB para la plataforma de CoderHouse, el mismo simula un e-commerce orientado a la venta de libros. Incluye JWT, roles, compras con tickets, recuperación de contraseña y envío de email. 
 
+Nota: Las imagenes de portadas se obtuvieron desde Open Library Covers API.
+
 ## 🔧 Instalación
 
 ### Requisitos Previos

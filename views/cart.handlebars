@@ -63,8 +63,8 @@
 
       return `
         <div class="cart-item">
-          <div class="product-card-image">
-            📦
+          <div class="cart-item-thumb" style="${item.product.thumbnail ? `--thumb-url: url('${item.product.thumbnail}')` : ''}">
+            ${item.product.thumbnail ? `<img src="${item.product.thumbnail}" alt="${item.product.name}">` : '📦'}
           </div>
           <div class="item-info">
             <h3>${item.product.name}</h3>
